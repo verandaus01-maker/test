@@ -2,6 +2,19 @@
 
 An enterprise-grade lead generation and scraping platform built for digital marketing agencies. This system provides multi-source data collection, AI-powered lead scoring, advanced filtering, and seamless CRM integrations.
 
+## 🚀 Deploying to Vercel?
+
+**⚠️ IMPORTANT:** If you're getting a 404 error on Vercel, you MUST configure the Root Directory setting.
+
+**Quick Fix:**
+1. Go to your Vercel project **Settings** → **General**
+2. Set **Root Directory** to: `frontend`
+3. Save and redeploy
+
+📖 [**Read Full Vercel Setup Guide →**](VERCEL_SETUP.md)
+
+📖 [**Complete Deployment Guide (Backend + Frontend) →**](DEPLOYMENT.md)
+
 ## Features
 
 ### Core Capabilities

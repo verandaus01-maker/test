@@ -1,15 +1,15 @@
 {
-  "buildCommand": "cd frontend && npm install && npm run build",
-  "outputDirectory": "frontend/dist",
-  "framework": null,
   "rewrites": [
     {
       "source": "/api/(.*)",
       "destination": "https://your-backend-url.com/api/$1"
-    },
+    }
+  ],
+  "routes": [
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "src": "/[^.]+",
+      "dest": "/",
+      "status": 200
     }
   ],
   "headers": [
