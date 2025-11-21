@@ -17,7 +17,7 @@ from app.core.database import init_db, close_db
 from app.core.redis_client import redis_client
 
 # Import routers
-from app.api import auth, leads, scraping, users, exports, integrations, analytics
+from app.api import auth, leads, scraping, users, exports, integrations, analytics, indian_leads
 
 # Create limiter for rate limiting
 limiter = Limiter(key_func=get_remote_address)
@@ -164,6 +164,7 @@ app.include_router(scraping.router, prefix="/api/scraping", tags=["Scraping"])
 app.include_router(exports.router, prefix="/api/exports", tags=["Exports"])
 app.include_router(integrations.router, prefix="/api/integrations", tags=["Integrations"])
 app.include_router(analytics.router, prefix="/api/analytics", tags=["Analytics"])
+app.include_router(indian_leads.router)
 
 
 if __name__ == "__main__":

@@ -1,393 +1,542 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './App.css'
+import { api } from './api'
+
+interface Lead {
+  company_name: string;
+  address: string;
+  phone?: string;
+  website?: string;
+  rating?: number;
+  distance_from_center_km?: number;
+  decision_makers?: any;
+  website_audit?: any;
+  outreach_email?: string;
+}
 
 function App() {
-  const [activeTab, setActiveTab] = useState('dashboard')
+  const [activeTab, setActiveTab] = useState('scraping')
+  const [businessType, setBusinessType] = useState('dental clinics')
+  const [city, setCity] = useState('Mumbai')
+  const [radiusKm, setRadiusKm] = useState(5)
+  const [maxResults, setMaxResults] = useState(10)
+  const [isLoading, setIsLoading] = useState(false)
+  const [results, setResults] = useState<Lead[]>([])
+  const [enrichedLeads, setEnrichedLeads] = useState<any[]>([])
+  const [selectedLead, setSelectedLead] = useState<any>(null)
+  const [businessTypes, setBusinessTypes] = useState<any[]>([])
+  const [showEnrichModal, setShowEnrichModal] = useState(false)
+
+  // Fetch business types on mount
+  useEffect(() => {
+    loadBusinessTypes()
+  }, [])
+
+  const loadBusinessTypes = async () => {
+    try {
+      const data = await api.getBusinessTypes()
+      setBusinessTypes(data.business_types || [])
+    } catch (error) {
+      console.error('Failed to load business types:', error)
+    }
+  }
+
+  const handleScrape = async () => {
+    setIsLoading(true)
+    setResults([])
+    setEnrichedLeads([])
+
+    try {
+      const data = await api.scrapeIndianBusinesses({
+        business_type: businessType,
+        city: city,
+        radius_km: radiusKm,
+        max_results: maxResults,
+        sources: ['google_maps', 'justdial']
+      })
+
+      setResults(data.leads || [])
+      alert(`Found ${data.total_found} businesses!`)
+    } catch (error: any) {
+      alert(`Error: ${error.message}`)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleBulkEnrich = async () => {
+    setIsLoading(true)
+
+    try {
+      const data = await api.bulkScrapeAndEnrich({
+        business_type: businessType,
+        city: city,
+        radius_km: radiusKm,
+        max_results: Math.min(maxResults, 10), // Limit to 10 for enrichment
+        sources: ['google_maps', 'justdial']
+      })
+
+      setEnrichedLeads(data.leads || [])
+      setActiveTab('enriched')
+      alert(`Enriched ${data.total_enriched} leads with website audits and outreach emails!`)
+    } catch (error: any) {
+      alert(`Error: ${error.message}`)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleEnrichSingle = async (lead: Lead) => {
+    if (!lead.website) {
+      alert('This business has no website to audit')
+      return
+    }
+
+    setIsLoading(true)
+
+    try {
+      const data = await api.enrichLead({
+        company_name: lead.company_name,
+        website: lead.website,
+        find_decision_makers: true,
+        audit_website: true,
+        generate_lead_magnet: true
+      })
+
+      setSelectedLead(data)
+      setShowEnrichModal(true)
+    } catch (error: any) {
+      alert(`Error: ${error.message}`)
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center">
-              <h1 className="text-2xl font-bold text-primary-600">Lead Scraper Pro</h1>
-              <span className="ml-3 px-2 py-1 text-xs font-semibold text-primary-700 bg-primary-100 rounded-full">
-                Enterprise
-              </span>
+      <header className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white shadow-lg">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl font-bold">🇮🇳 Indian Lead Scraper Pro</h1>
+              <p className="text-blue-100 mt-1">Advanced lead generation for Indian businesses</p>
             </div>
-            <nav className="hidden md:flex space-x-4">
-              <button
-                onClick={() => setActiveTab('dashboard')}
-                className={`px-3 py-2 rounded-md text-sm font-medium ${
-                  activeTab === 'dashboard'
-                    ? 'bg-primary-100 text-primary-700'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                Dashboard
-              </button>
-              <button
-                onClick={() => setActiveTab('leads')}
-                className={`px-3 py-2 rounded-md text-sm font-medium ${
-                  activeTab === 'leads'
-                    ? 'bg-primary-100 text-primary-700'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                Leads
-              </button>
-              <button
-                onClick={() => setActiveTab('scraping')}
-                className={`px-3 py-2 rounded-md text-sm font-medium ${
-                  activeTab === 'scraping'
-                    ? 'bg-primary-100 text-primary-700'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                Scraping
-              </button>
-              <button
-                onClick={() => setActiveTab('analytics')}
-                className={`px-3 py-2 rounded-md text-sm font-medium ${
-                  activeTab === 'analytics'
-                    ? 'bg-primary-100 text-primary-700'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                Analytics
-              </button>
-            </nav>
-            <div className="flex items-center space-x-4">
-              <button className="p-2 text-gray-500 hover:text-gray-700">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                </svg>
-              </button>
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center text-white font-semibold">
-                  A
-                </div>
-                <span className="text-sm font-medium text-gray-700">Admin</span>
-              </div>
+            <div className="text-right">
+              <div className="text-sm text-blue-100">Powered by AI</div>
+              <div className="text-xs text-blue-200">Google Maps • JustDial • IndiaMART</div>
             </div>
           </div>
         </div>
       </header>
 
+      {/* Navigation */}
+      <nav className="bg-white shadow">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex space-x-8">
+            {['scraping', 'results', 'enriched'].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-4 py-4 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === tab
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                {tab === 'results' && results.length > 0 && ` (${results.length})`}
+                {tab === 'enriched' && enrichedLeads.length > 0 && ` (${enrichedLeads.length})`}
+              </button>
+            ))}
+          </div>
+        </div>
+      </nav>
+
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {activeTab === 'dashboard' && <Dashboard />}
-        {activeTab === 'leads' && <LeadsView />}
-        {activeTab === 'scraping' && <ScrapingView />}
-        {activeTab === 'analytics' && <AnalyticsView />}
+        {activeTab === 'scraping' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">
+                🎯 Find Indian Business Leads
+              </h2>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Business Type */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Business Type
+                  </label>
+                  <select
+                    value={businessType}
+                    onChange={(e) => setBusinessType(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    {businessTypes.length > 0 ? (
+                      businessTypes.map((type) => (
+                        <option key={type.value} value={type.value}>
+                          {type.label}
+                        </option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="dental clinics">Dental Clinics</option>
+                        <option value="restaurants">Restaurants</option>
+                        <option value="hotels">Hotels</option>
+                        <option value="gyms">Gyms & Fitness Centers</option>
+                        <option value="salons">Beauty Salons & Spas</option>
+                        <option value="doctors">Doctors & Clinics</option>
+                        <option value="lawyers">Law Firms</option>
+                        <option value="accountants">Accountants</option>
+                        <option value="real estate">Real Estate Agencies</option>
+                        <option value="schools">Schools</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+
+                {/* City */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    City
+                  </label>
+                  <select
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="Mumbai">Mumbai</option>
+                    <option value="Delhi">Delhi</option>
+                    <option value="Bangalore">Bangalore</option>
+                    <option value="Hyderabad">Hyderabad</option>
+                    <option value="Chennai">Chennai</option>
+                    <option value="Kolkata">Kolkata</option>
+                    <option value="Pune">Pune</option>
+                    <option value="Ahmedabad">Ahmedabad</option>
+                    <option value="Jaipur">Jaipur</option>
+                    <option value="Surat">Surat</option>
+                    <option value="Lucknow">Lucknow</option>
+                    <option value="Kanpur">Kanpur</option>
+                    <option value="Nagpur">Nagpur</option>
+                    <option value="Indore">Indore</option>
+                    <option value="Bhopal">Bhopal</option>
+                    <option value="Coimbatore">Coimbatore</option>
+                    <option value="Chandigarh">Chandigarh</option>
+                  </select>
+                </div>
+
+                {/* Radius */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Search Radius (km)
+                  </label>
+                  <input
+                    type="number"
+                    value={radiusKm}
+                    onChange={(e) => setRadiusKm(parseInt(e.target.value))}
+                    min="1"
+                    max="50"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Find businesses within {radiusKm}km radius
+                  </p>
+                </div>
+
+                {/* Max Results */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Maximum Results
+                  </label>
+                  <input
+                    type="number"
+                    value={maxResults}
+                    onChange={(e) => setMaxResults(parseInt(e.target.value))}
+                    min="1"
+                    max="100"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="mt-8 flex space-x-4">
+                <button
+                  onClick={handleScrape}
+                  disabled={isLoading}
+                  className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {isLoading ? '🔄 Scraping...' : '🔍 Find Leads'}
+                </button>
+
+                <button
+                  onClick={handleBulkEnrich}
+                  disabled={isLoading}
+                  className="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-purple-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {isLoading ? '⚡ Processing...' : '⚡ Scrape + Audit + Generate Emails'}
+                </button>
+              </div>
+
+              <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <h3 className="font-semibold text-blue-900 mb-2">💡 What You Get:</h3>
+                <ul className="text-sm text-blue-800 space-y-1">
+                  <li>✓ Company name, address, phone, website</li>
+                  <li>✓ CEO & Marketing Manager contact details</li>
+                  <li>✓ Automatic website audit with scores</li>
+                  <li>✓ Personalized outreach email for each lead</li>
+                  <li>✓ Lead magnet suggestions to pitch</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'results' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                📊 Scraped Leads ({results.length})
+              </h2>
+
+              {results.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <p>No results yet. Start by scraping some leads!</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {results.map((lead, index) => (
+                    <div key={index} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <h3 className="text-lg font-semibold text-gray-900">
+                            {lead.company_name}
+                          </h3>
+                          <p className="text-sm text-gray-600 mt-1">{lead.address}</p>
+
+                          <div className="mt-3 flex flex-wrap gap-3 text-sm">
+                            {lead.phone && (
+                              <span className="flex items-center text-gray-700">
+                                📞 {lead.phone}
+                              </span>
+                            )}
+                            {lead.website && (
+                              <a
+                                href={lead.website}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center text-blue-600 hover:underline"
+                              >
+                                🌐 Website
+                              </a>
+                            )}
+                            {lead.rating && (
+                              <span className="flex items-center text-yellow-600">
+                                ⭐ {lead.rating}
+                              </span>
+                            )}
+                            {lead.distance_from_center_km && (
+                              <span className="text-gray-500">
+                                📍 {lead.distance_from_center_km.toFixed(1)} km away
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {lead.website && (
+                          <button
+                            onClick={() => handleEnrichSingle(lead)}
+                            disabled={isLoading}
+                            className="ml-4 px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                          >
+                            {isLoading ? '...' : '⚡ Enrich & Audit'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'enriched' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                ✨ Enriched Leads - Ready for Outreach ({enrichedLeads.length})
+              </h2>
+
+              {enrichedLeads.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <p>No enriched leads yet. Use "Scrape + Audit + Generate Emails" button!</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {enrichedLeads.map((lead, index) => (
+                    <div key={index} className="border-2 border-purple-200 rounded-lg p-6 bg-gradient-to-r from-purple-50 to-indigo-50">
+                      <div className="flex justify-between items-start mb-4">
+                        <div>
+                          <h3 className="text-xl font-bold text-gray-900">
+                            {lead.company_name}
+                          </h3>
+                          <p className="text-sm text-gray-600">{lead.address}</p>
+                        </div>
+
+                        {lead.website_audit && (
+                          <div className="text-right">
+                            <div className="text-3xl font-bold text-purple-600">
+                              {lead.website_audit.overall_score || 'N/A'}
+                            </div>
+                            <div className="text-xs text-gray-600">Website Score</div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Website Audit Summary */}
+                      {lead.website_audit && (
+                        <div className="bg-white rounded-lg p-4 mb-4">
+                          <h4 className="font-semibold text-gray-900 mb-2">🔍 Website Audit:</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                            <div>
+                              <span className="text-gray-600">Critical Issues:</span>
+                              <span className="ml-2 font-semibold text-red-600">
+                                {lead.website_audit.critical_issues_count || 0}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-gray-600">Opportunities:</span>
+                              <span className="ml-2 font-semibold text-green-600">
+                                {lead.website_audit.opportunities?.length || 0}
+                              </span>
+                            </div>
+                          </div>
+
+                          {lead.website_audit.opportunities && lead.website_audit.opportunities.length > 0 && (
+                            <div className="mt-3 space-y-2">
+                              {lead.website_audit.opportunities.slice(0, 3).map((opp: any, i: number) => (
+                                <div key={i} className="text-sm text-gray-700 pl-4 border-l-2 border-purple-400">
+                                  <strong>{opp.title}:</strong> {opp.pitch_angle}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Outreach Email */}
+                      {lead.outreach_email && (
+                        <div className="bg-white rounded-lg p-4">
+                          <h4 className="font-semibold text-gray-900 mb-2">📧 Personalized Outreach Email:</h4>
+                          <pre className="text-xs text-gray-700 whitespace-pre-wrap font-mono bg-gray-50 p-3 rounded border border-gray-200 overflow-x-auto">
+                            {lead.outreach_email}
+                          </pre>
+
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(lead.outreach_email)
+                              alert('Email copied to clipboard!')
+                            }}
+                            className="mt-3 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
+                          >
+                            📋 Copy Email
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </main>
-    </div>
-  )
-}
 
-function Dashboard() {
-  return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-900">Dashboard</h2>
+      {/* Enrichment Modal */}
+      {showEnrichModal && selectedLead && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6">
+            <div className="flex justify-between items-start mb-4">
+              <h2 className="text-2xl font-bold text-gray-900">
+                Enrichment Results - {selectedLead.company_name}
+              </h2>
+              <button
+                onClick={() => setShowEnrichModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <StatCard title="Total Leads" value="12,458" change="+12.5%" positive />
-        <StatCard title="High Quality" value="3,842" change="+8.2%" positive />
-        <StatCard title="Active Campaigns" value="24" change="+3" positive />
-        <StatCard title="Avg Lead Score" value="78.5" change="+5.3%" positive />
-      </div>
+            {/* Decision Makers */}
+            {selectedLead.decision_makers && (
+              <div className="mb-6">
+                <h3 className="font-semibold text-lg mb-2">👥 Decision Makers:</h3>
+                {selectedLead.decision_makers.email_patterns && (
+                  <div className="bg-gray-50 p-4 rounded">
+                    <p className="text-sm font-medium mb-2">Likely Email Patterns:</p>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      {Object.entries(selectedLead.decision_makers.email_patterns).map(([role, emails]: [string, any]) => (
+                        <div key={role}>
+                          <strong>{role}:</strong>
+                          <ul className="pl-4">
+                            {emails.slice(0, 2).map((email: string, i: number) => (
+                              <li key={i} className="text-gray-600">{email}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
-      {/* Quick Actions */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <ActionButton icon="🎯" title="New Scraping Job" />
-          <ActionButton icon="📤" title="Export Leads" />
-          <ActionButton icon="🔄" title="Sync to CRM" />
-          <ActionButton icon="📧" title="Email Campaign" />
-        </div>
-      </div>
+            {/* Website Audit */}
+            {selectedLead.website_audit && (
+              <div className="mb-6">
+                <h3 className="font-semibold text-lg mb-2">🔍 Website Audit:</h3>
+                <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-4 rounded">
+                  <div className="text-center mb-4">
+                    <div className="text-4xl font-bold text-purple-600">
+                      {selectedLead.website_audit.overall_score}/100
+                    </div>
+                    <div className="text-sm text-gray-600">Overall Score</div>
+                  </div>
 
-      {/* Recent Activity */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">Recent Activity</h3>
-        <div className="space-y-3">
-          <ActivityItem title="Scraping job completed" description="LinkedIn - Tech Companies" time="2 minutes ago" />
-          <ActivityItem title="348 new leads enriched" description="Email verification completed" time="15 minutes ago" />
-          <ActivityItem title="Export generated" description="CSV export ready for download" time="1 hour ago" />
-          <ActivityItem title="Campaign sent" description="Follow-up email to 250 leads" time="3 hours ago" />
-        </div>
-      </div>
-    </div>
-  )
-}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                    {Object.entries(selectedLead.website_audit.scores || {}).map(([category, score]: [string, any]) => (
+                      <div key={category} className="text-center bg-white p-2 rounded">
+                        <div className="font-bold text-lg">{score}</div>
+                        <div className="text-xs text-gray-600 capitalize">{category.replace('_', ' ')}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
 
-function LeadsView() {
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-900">Leads</h2>
-        <button className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">
-          Add Lead
-        </button>
-      </div>
+            {/* Outreach Email */}
+            {selectedLead.outreach_email_template && (
+              <div>
+                <h3 className="font-semibold text-lg mb-2">📧 Outreach Email:</h3>
+                <pre className="text-sm text-gray-700 whitespace-pre-wrap font-mono bg-gray-50 p-4 rounded border border-gray-200">
+                  {selectedLead.outreach_email_template}
+                </pre>
+              </div>
+            )}
 
-      {/* Filters */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <input
-            type="text"
-            placeholder="Search leads..."
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-          />
-          <select className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
-            <option>All Industries</option>
-            <option>Technology</option>
-            <option>Healthcare</option>
-          </select>
-          <select className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
-            <option>All Scores</option>
-            <option>High (80+)</option>
-            <option>Medium (50-79)</option>
-          </select>
-          <button className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">
-            Advanced Filters
-          </button>
-        </div>
-      </div>
-
-      {/* Leads Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Industry</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            <LeadRow
-              company="Acme Corp"
-              contact="john@acme.com"
-              industry="Technology"
-              score={92}
-              status="New"
-            />
-            <LeadRow
-              company="TechStart Inc"
-              contact="sarah@techstart.com"
-              industry="Software"
-              score={85}
-              status="Contacted"
-            />
-            <LeadRow
-              company="Digital Solutions"
-              contact="mike@digitalsol.com"
-              industry="Marketing"
-              score={78}
-              status="Qualified"
-            />
-          </tbody>
-        </table>
-      </div>
-    </div>
-  )
-}
-
-function ScrapingView() {
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-900">Scraping Jobs</h2>
-        <button className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">
-          New Scraping Job
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <JobCard
-          title="LinkedIn Tech Companies"
-          status="Running"
-          progress={65}
-          leads={1250}
-          sources={['LinkedIn', 'Company Websites']}
-        />
-        <JobCard
-          title="Google Maps - SF Bay Area"
-          status="Completed"
-          progress={100}
-          leads={3450}
-          sources={['Google Maps']}
-        />
-        <JobCard
-          title="Healthcare Providers"
-          status="Pending"
-          progress={0}
-          leads={0}
-          sources={['LinkedIn', 'Google Maps']}
-        />
-      </div>
-    </div>
-  )
-}
-
-function AnalyticsView() {
-  return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-900">Analytics</h2>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold mb-4">Lead Sources</h3>
-          <div className="space-y-3">
-            <SourceBar source="LinkedIn" percentage={45} count={5620} />
-            <SourceBar source="Google Maps" percentage={30} count={3745} />
-            <SourceBar source="Company Websites" percentage={15} count={1873} />
-            <SourceBar source="Manual" percentage={10} count={1248} />
+            <button
+              onClick={() => setShowEnrichModal(false)}
+              className="mt-6 w-full px-4 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700"
+            >
+              Close
+            </button>
           </div>
         </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold mb-4">Lead Quality Distribution</h3>
-          <div className="space-y-3">
-            <QualityBar quality="High (80+)" percentage={35} count={4369} color="bg-green-500" />
-            <QualityBar quality="Medium (50-79)" percentage={45} count={5616} color="bg-yellow-500" />
-            <QualityBar quality="Low (<50)" percentage={20} count={2496} color="bg-red-500" />
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// Helper Components
-function StatCard({ title, value, change, positive }: { title: string; value: string; change: string; positive: boolean }) {
-  return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <div className="text-sm font-medium text-gray-500">{title}</div>
-      <div className="mt-2 flex items-baseline">
-        <div className="text-2xl font-semibold text-gray-900">{value}</div>
-        <span className={`ml-2 text-sm font-medium ${positive ? 'text-green-600' : 'text-red-600'}`}>
-          {change}
-        </span>
-      </div>
-    </div>
-  )
-}
-
-function ActionButton({ icon, title }: { icon: string; title: string }) {
-  return (
-    <button className="flex flex-col items-center justify-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-      <span className="text-3xl mb-2">{icon}</span>
-      <span className="text-sm font-medium text-gray-700">{title}</span>
-    </button>
-  )
-}
-
-function ActivityItem({ title, description, time }: { title: string; description: string; time: string }) {
-  return (
-    <div className="flex items-start space-x-3 py-2">
-      <div className="w-2 h-2 mt-2 bg-primary-600 rounded-full"></div>
-      <div className="flex-1">
-        <p className="text-sm font-medium text-gray-900">{title}</p>
-        <p className="text-sm text-gray-500">{description}</p>
-      </div>
-      <span className="text-xs text-gray-400">{time}</span>
-    </div>
-  )
-}
-
-function LeadRow({ company, contact, industry, score, status }: any) {
-  const scoreColor = score >= 80 ? 'text-green-600 bg-green-100' : score >= 50 ? 'text-yellow-600 bg-yellow-100' : 'text-red-600 bg-red-100'
-
-  return (
-    <tr className="hover:bg-gray-50">
-      <td className="px-6 py-4 whitespace-nowrap">
-        <div className="font-medium text-gray-900">{company}</div>
-      </td>
-      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{contact}</td>
-      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{industry}</td>
-      <td className="px-6 py-4 whitespace-nowrap">
-        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${scoreColor}`}>
-          {score}
-        </span>
-      </td>
-      <td className="px-6 py-4 whitespace-nowrap">
-        <span className="px-2 py-1 text-xs font-semibold text-primary-700 bg-primary-100 rounded-full">
-          {status}
-        </span>
-      </td>
-      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-        <button className="text-primary-600 hover:text-primary-900">View</button>
-      </td>
-    </tr>
-  )
-}
-
-function JobCard({ title, status, progress, leads, sources }: any) {
-  const statusColor = status === 'Running' ? 'bg-blue-100 text-blue-800' : status === 'Completed' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-
-  return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <div className="flex justify-between items-start mb-4">
-        <h3 className="font-semibold text-gray-900">{title}</h3>
-        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${statusColor}`}>
-          {status}
-        </span>
-      </div>
-      <div className="mb-4">
-        <div className="flex justify-between text-sm mb-1">
-          <span className="text-gray-500">Progress</span>
-          <span className="font-medium">{progress}%</span>
-        </div>
-        <div className="w-full bg-gray-200 rounded-full h-2">
-          <div className="bg-primary-600 h-2 rounded-full" style={{ width: `${progress}%` }}></div>
-        </div>
-      </div>
-      <div className="text-sm text-gray-500 mb-2">
-        <span className="font-medium text-gray-900">{leads}</span> leads found
-      </div>
-      <div className="flex flex-wrap gap-1">
-        {sources.map((source: string) => (
-          <span key={source} className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded">
-            {source}
-          </span>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function SourceBar({ source, percentage, count }: any) {
-  return (
-    <div>
-      <div className="flex justify-between text-sm mb-1">
-        <span className="font-medium text-gray-700">{source}</span>
-        <span className="text-gray-500">{count} ({percentage}%)</span>
-      </div>
-      <div className="w-full bg-gray-200 rounded-full h-2">
-        <div className="bg-primary-600 h-2 rounded-full" style={{ width: `${percentage}%` }}></div>
-      </div>
-    </div>
-  )
-}
-
-function QualityBar({ quality, percentage, count, color }: any) {
-  return (
-    <div>
-      <div className="flex justify-between text-sm mb-1">
-        <span className="font-medium text-gray-700">{quality}</span>
-        <span className="text-gray-500">{count} ({percentage}%)</span>
-      </div>
-      <div className="w-full bg-gray-200 rounded-full h-2">
-        <div className={`${color} h-2 rounded-full`} style={{ width: `${percentage}%` }}></div>
-      </div>
+      )}
     </div>
   )
 }
