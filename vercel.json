@@ -1,4 +1,7 @@
 {
+  "buildCommand": "bash build.sh",
+  "outputDirectory": "frontend/dist",
+  "installCommand": "echo 'Dependencies installed via build script'",
   "rewrites": [
     {
       "source": "/api/(.*)",
